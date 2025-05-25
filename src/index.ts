@@ -23,24 +23,23 @@ io.on('connection', (socket) => {
       activeIntervals.delete(socketId);
     };
   };
+
+  const setSocketInterval = (socketId: string, fn: () => void): void => {
+    clearSocketInterval(socketId);
+    fn();
+    const interval = setInterval(fn, 1000);
+    activeIntervals.set(socketId, interval);
+  };
   
   socket.on('getRoomList', () => {
-    clearSocketInterval(socket.id);
-    const interval: NodeJS.Timeout = setInterval(() => {
-      socket.emit('getRoomList', roomList);
-    }, 1000);
-    activeIntervals.set(socket.id, interval);
+    setSocketInterval(socket.id, ()=> socket.emit('getRoomList', roomList));
   });
 
   socket.on('createRoom', (roomData)=>{
     roomList.push(roomData);
-    clearSocketInterval(socket.id);
     socket.join(roomData.roomId);
-    const interval: NodeJS.Timeout = setInterval(() => {
-      const data = roomList.find((room)=> room.roomId === roomData.roomId);
-      io.to(roomData.roomId).emit('roomData', data);
-    }, 1000);
-    activeIntervals.set(socket.id, interval);
+    const data = roomList.find((room)=> room.roomId === roomData.roomId);
+    setSocketInterval(socket.id, ()=> io.to(roomData.roomId).emit('roomData', data));
   });
 
   socket.on('enterRoom', (roomData) => {
@@ -49,10 +48,7 @@ io.on('connection', (socket) => {
     if (roomIndex === -1) return;
     roomList[roomIndex].users.push(roomData.user);
     socket.join(roomData.roomId);
-    const interval = setInterval(() => {
-      socket.emit('roomData', roomList[roomIndex]);
-    }, 1000);
-    activeIntervals.set(socket.id, interval);
+    setSocketInterval(socket.id, ()=> socket.emit('roomData', roomList[roomIndex]));
   });
 
   socket.on('leaveRoom', (data: { userId: string; roomId: string }) => {
@@ -68,10 +64,7 @@ io.on('connection', (socket) => {
     };
     socket.leave(roomId);
     clearSocketInterval(socket.id);
-    const interval: NodeJS.Timeout = setInterval(() => {
-      socket.emit('getRoomList', roomList);
-    }, 1000);
-    activeIntervals.set(socket.id, interval);
+    setSocketInterval(socket.id, ()=> socket.emit('getRoomList', roomList));
     console.log(`User ${userId} left room ${roomId}`);
     io.emit('getRoomList', roomList);
   });
