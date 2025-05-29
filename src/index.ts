@@ -2,6 +2,7 @@ import { createServer, Server as HTTPServer  } from 'http';
 import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 import { RoomDataType } from './types/RoomData.type';
+import { UserType } from './types/UserType.type';
 
 dotenv.config();
 
@@ -66,6 +67,21 @@ io.on('connection', (socket) => {
     clearSocketInterval(socket.id);
     setSocketInterval(socket.id, ()=> socket.emit('getRoomList', roomList));
     console.log(`User ${userId} left room ${roomId}`);
+    io.emit('getRoomList', roomList);
+  });
+
+  socket.on('controllerUpdate', ({ user, roomId }) => {
+    const roomIndex = roomList.findIndex(room => room.roomId === roomId);
+    if (roomIndex === -1) {
+      console.log(`Room ${roomId} not found.`);
+      return;
+    };
+    const userIndex = roomList[roomIndex].users.findIndex(u => u.id === user.id);
+    if (userIndex === -1) {
+      console.log(`User ${user.id} not found in room ${roomId}.`);
+      return;
+    };
+    roomList[roomIndex].users[userIndex] = user;
     io.emit('getRoomList', roomList);
   });
 
