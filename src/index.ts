@@ -18,6 +18,7 @@ let roomList: RoomDataType[] = [];
 io.on('connection', (socket) => {
   console.log(`Client connected`);
 
+  // Helper Functions ------------------------------------------------------------------>
   const clearSocketInterval = (socketId: string): void => {
     if (activeIntervals.has(socketId)) {
       clearInterval(activeIntervals.get(socketId));
@@ -31,7 +32,9 @@ io.on('connection', (socket) => {
     const interval = setInterval(fn, 1000);
     activeIntervals.set(socketId, interval);
   };
+
   
+  // Socket Functions ------------------------------------------------------------------>
   socket.on('getRoomList', () => {
     setSocketInterval(socket.id, ()=> socket.emit('getRoomList', roomList));
   });
@@ -39,13 +42,13 @@ io.on('connection', (socket) => {
   socket.on('createRoom', (roomData)=>{
     roomList.push(roomData);
     socket.join(roomData.roomId);
-    const data = roomList.find((room)=> room.roomId === roomData.roomId);
+    const data: RoomDataType | undefined = roomList.find((room)=> room.roomId === roomData.roomId);
     setSocketInterval(socket.id, ()=> io.to(roomData.roomId).emit('roomData', data));
   });
 
   socket.on('enterRoom', (roomData) => {
     clearSocketInterval(socket.id);
-    let roomIndex = roomList.findIndex((room)=> room.roomId === roomData.roomId);
+    let roomIndex: number = roomList.findIndex((room)=> room.roomId === roomData.roomId);
     if (roomIndex === -1) return;
     roomList[roomIndex].users.push(roomData.user);
     socket.join(roomData.roomId);
@@ -71,12 +74,12 @@ io.on('connection', (socket) => {
   });
 
   socket.on('controllerUpdate', ({ user, roomId }) => {
-    const roomIndex = roomList.findIndex(room => room.roomId === roomId);
+    const roomIndex: number = roomList.findIndex(room => room.roomId === roomId);
     if (roomIndex === -1) {
       console.log(`Room ${roomId} not found.`);
       return;
     };
-    const userIndex = roomList[roomIndex].users.findIndex(u => u.id === user.id);
+    const userIndex: number = roomList[roomIndex].users.findIndex(u => u.id === user.id);
     if (userIndex === -1) {
       console.log(`User ${user.id} not found in room ${roomId}.`);
       return;
