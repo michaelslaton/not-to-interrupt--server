@@ -17,7 +17,7 @@ let roomList: RoomDataType[] = [];
 
 io.on('connection', (socket) => {
   console.log(`Client connected`);
-
+  
   // Helper Functions ------------------------------------------------------------------>
   const clearSocketInterval = (socketId: string): void => {
     if (activeIntervals.has(socketId)) {
@@ -25,14 +25,13 @@ io.on('connection', (socket) => {
       activeIntervals.delete(socketId);
     };
   };
-
+  
   const setSocketInterval = (socketId: string, fn: () => void): void => {
     clearSocketInterval(socketId);
     fn();
     const interval = setInterval(fn, 1000);
     activeIntervals.set(socketId, interval);
   };
-
   
   // Socket Functions ------------------------------------------------------------------>
   socket.on('getRoomList', () => {
@@ -94,6 +93,7 @@ io.on('connection', (socket) => {
       clearInterval(interval);
       activeIntervals.delete(socket.id);
     };
+    io.emit('getRoomList', roomList);
     console.log(`Client disconnected: ${socket.id}`);
   });
 });

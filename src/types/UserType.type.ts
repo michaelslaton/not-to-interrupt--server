@@ -4,6 +4,7 @@ type UserType = {
   id: string;
   name: string;
   controller: ControllerType;
+  socketId: string;
 };
 
 export type { UserType };
