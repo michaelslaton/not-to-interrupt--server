@@ -14,6 +14,15 @@ const io = new Server(httpServer, {
 });
 const activeIntervals = new Map<string, NodeJS.Timeout>();
 let roomList: RoomDataType[] = [];
+const lastPongMap = new Map<string, number>();
+
+const startPingingSocket = (socketId: string) => {
+  targetSocketIds.add(socketId);
+};
+
+const stopPingingSocket = (socketId: string) => {
+  targetSocketIds.delete(socketId);
+};
 
 io.on('connection', (socket) => {
   console.log(`Client connected`);
@@ -34,19 +43,26 @@ io.on('connection', (socket) => {
   };
   
   // Socket Functions ------------------------------------------------------------------>
+  socket.on('pongCheck', () => {
+    lastPongMap.set(socket.id, Date.now());
+  });
+  
   socket.on('getRoomList', () => {
     setSocketInterval(socket.id, ()=> socket.emit('getRoomList', roomList));
   });
 
-  socket.on('createRoom', (roomData)=>{
+  socket.on('createRoom', (roomData: RoomDataType)=>{
     roomList.push(roomData);
     socket.join(roomData.roomId);
+    lastPongMap.set(socket.id, Date.now());
+    startPingingSocket(roomData.users[0].socketId);
     const data: RoomDataType | undefined = roomList.find((room)=> room.roomId === roomData.roomId);
     setSocketInterval(socket.id, ()=> io.to(roomData.roomId).emit('roomData', data));
   });
 
   socket.on('enterRoom', (roomData) => {
     clearSocketInterval(socket.id);
+    lastPongMap.set(socket.id, Date.now());
     let roomIndex: number = roomList.findIndex((room)=> room.roomId === roomData.roomId);
     if (roomIndex === -1) return;
     roomList[roomIndex].users.push(roomData.user);
@@ -97,6 +113,31 @@ io.on('connection', (socket) => {
     console.log(`Client disconnected: ${socket.id}`);
   });
 });
+const targetSocketIds = new Set<string>();
+
+// Ping interval logic
+setInterval(() => {
+  const now = Date.now();
+
+  for (const [socketId, lastPong] of lastPongMap.entries()) {
+    const socket = io.sockets.sockets.get(socketId);
+
+    if (!socket) {
+      console.log(`Socket ${socketId} not found. Removing from map.`);
+      lastPongMap.delete(socketId);
+      continue;
+    };
+
+    if (now - lastPong > 10000) {
+      console.log(`Socket ${socketId} timed out. Disconnecting.`);
+      socket.disconnect(true);
+      lastPongMap.delete(socketId);
+      continue;
+    };
+
+    socket.emit('pingCheck');
+  };
+}, 5000);
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
