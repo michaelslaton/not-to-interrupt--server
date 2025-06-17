@@ -24,6 +24,11 @@ const stopPingingSocket = (socketId: string) => {
   targetSocketIds.delete(socketId);
 };
 
+const removeUserBySocketId = (socketId: string) => {
+  for (const room of roomList) room.users = room.users.filter(user => user.socketId !== socketId);
+  roomList = roomList.filter(room => room.users.length > 0);
+};
+
 io.on('connection', (socket) => {
   console.log(`Client connected`);
   
@@ -104,13 +109,24 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    const interval: NodeJS.Timeout | undefined = activeIntervals.get(socket.id);
+    console.log(`Client disconnected: ${socket.id}`);
+
+    // Clean up any setInterval
+    const interval = activeIntervals.get(socket.id);
     if (interval) {
       clearInterval(interval);
       activeIntervals.delete(socket.id);
-    };
+    }
+
+    // Remove user from all rooms
+    removeUserBySocketId(socket.id);
+
+    // Clean up from maps
+    lastPongMap.delete(socket.id);
+    targetSocketIds.delete(socket.id);
+
+    // Emit updated room list to all
     io.emit('getRoomList', roomList);
-    console.log(`Client disconnected: ${socket.id}`);
   });
 });
 const targetSocketIds = new Set<string>();
@@ -119,6 +135,7 @@ const targetSocketIds = new Set<string>();
 setInterval(() => {
   const now = Date.now();
 
+  console.log(roomList)
   for (const [socketId, lastPong] of lastPongMap.entries()) {
     const socket = io.sockets.sockets.get(socketId);
 
@@ -132,12 +149,15 @@ setInterval(() => {
       console.log(`Socket ${socketId} timed out. Disconnecting.`);
       socket.disconnect(true);
       lastPongMap.delete(socketId);
+      removeUserBySocketId(socketId);
       continue;
     };
 
     socket.emit('pingCheck');
   };
 }, 5000);
+
+
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
