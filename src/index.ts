@@ -48,6 +48,14 @@ io.on('connection', (socket) => {
   };
   
   // Socket Functions ------------------------------------------------------------------>
+  socket.on('chat', (data: { roomId: string, user: string, message: string })=>{
+    const { roomId, user, message } = data;
+    const roomIndex: number = roomList.findIndex(room => room.roomId === roomId);
+    if (roomIndex === -1) return console.log(`Room ${roomId} not found for user ${user}`);
+    roomList[roomIndex].chat.push({ user, message });
+    socket.emit('roomData', roomList[roomIndex]);
+  })
+
   socket.on('pongCheck', () => {
     lastPongMap.set(socket.id, Date.now());
   });
@@ -111,31 +119,26 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log(`Client disconnected: ${socket.id}`);
 
-    // Clean up any setInterval
     const interval = activeIntervals.get(socket.id);
     if (interval) {
       clearInterval(interval);
       activeIntervals.delete(socket.id);
     }
 
-    // Remove user from all rooms
     removeUserBySocketId(socket.id);
 
-    // Clean up from maps
     lastPongMap.delete(socket.id);
     targetSocketIds.delete(socket.id);
 
-    // Emit updated room list to all
     io.emit('getRoomList', roomList);
   });
 });
 const targetSocketIds = new Set<string>();
 
-// Ping interval logic
+// Ping interval logic ------------------------------------------------------------------>
 setInterval(() => {
   const now = Date.now();
 
-  console.log(roomList)
   for (const [socketId, lastPong] of lastPongMap.entries()) {
     const socket = io.sockets.sockets.get(socketId);
 
@@ -157,8 +160,7 @@ setInterval(() => {
   };
 }, 5000);
 
-
-
+//  ------------------------------------------------------------------------------------->
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
