@@ -53,7 +53,7 @@ io.on('connection', (socket) => {
     const roomIndex: number = roomList.findIndex(room => room.roomId === roomId);
     if (roomIndex === -1) return console.log(`Room ${roomId} not found for user ${user}`);
     roomList[roomIndex].chat.push({ user, message });
-    socket.emit('roomData', roomList[roomIndex]);
+    io.to(roomId).emit('roomData', roomList[roomIndex]);
   })
 
   socket.on('pongCheck', () => {
