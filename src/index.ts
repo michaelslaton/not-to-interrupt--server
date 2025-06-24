@@ -46,15 +46,24 @@ io.on('connection', (socket) => {
     const interval = setInterval(fn, 1000);
     activeIntervals.set(socketId, interval);
   };
+
+  const emitError = (msg: string): void => {
+    socket.emit('error', msg);
+    console.error(msg);
+  };
   
   // Socket Functions ------------------------------------------------------------------>
   socket.on('chat', (data: { roomId: string, user: string, message: string })=>{
     const { roomId, user, message } = data;
+    if (!roomId?.trim()) return emitError('Missing RoomID');
+    if (!user?.trim()) return emitError('Missing User');
+    if (!message?.trim()) return emitError('Missing Message');
+
     const roomIndex: number = roomList.findIndex(room => room.roomId === roomId);
-    if (roomIndex === -1) return console.log(`Room ${roomId} not found for user ${user}`);
+    if (roomIndex === -1) return emitError(`Room ${roomId} not found for user ${user}`);
     roomList[roomIndex].chat.push({ user, message });
     io.to(roomId).emit('roomData', roomList[roomIndex]);
-  })
+  });
 
   socket.on('pongCheck', () => {
     lastPongMap.set(socket.id, Date.now());
@@ -65,12 +74,21 @@ io.on('connection', (socket) => {
   });
 
   socket.on('createRoom', (roomData: RoomDataType)=>{
+    if(!roomData) return emitError('Missing Room Data');
+    const { roomId, users, hostId, name } = roomData;
+    if (!Array.isArray(users) || users.length === 0) return emitError('No users provided.');
+    if(!roomId?.trim()) return emitError('Missing roomId');
+    if(!hostId?.trim()) return emitError('Missing hostId');
+    if(!name?.trim()) return emitError('Missing Room Name');
+    const roomExists = roomList.some(room => room.roomId === roomData.roomId || room.name === roomData.name);
+    if (roomExists) return emitError(`Room with ID "${roomData.roomId}" or name "${roomData.name}" already exists.`);
+
     roomList.push(roomData);
-    socket.join(roomData.roomId);
+    socket.join(roomId);
     lastPongMap.set(socket.id, Date.now());
     startPingingSocket(roomData.users[0].socketId);
-    const data: RoomDataType | undefined = roomList.find((room)=> room.roomId === roomData.roomId);
-    setSocketInterval(socket.id, ()=> io.to(roomData.roomId).emit('roomData', data));
+    const data: RoomDataType | undefined = roomList.find((room)=> room.roomId === roomId);
+    setSocketInterval(socket.id, ()=> io.to(roomId).emit('roomData', data));
   });
 
   socket.on('enterRoom', (roomData) => {
