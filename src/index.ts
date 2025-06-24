@@ -91,13 +91,24 @@ io.on('connection', (socket) => {
     setSocketInterval(socket.id, ()=> io.to(roomId).emit('roomData', data));
   });
 
-  socket.on('enterRoom', (roomData) => {
+  socket.on('enterRoom', (data: {roomId: string, user: UserType, socketId: string}) => {
+    const {roomId, user} = data;
+    if(!roomId?.trim()) return emitError('Missing roomId');
+    if (!user) return emitError('Missing user data');
+    if (!user.id?.trim()) return emitError('Missing user id');
+    if (!user.name?.trim()) return emitError('Missing user name');
+    if (!user.socketId?.trim()) return emitError('Missing socketId');
+    if (!user.controller) return emitError('Missing controller');
+    if (user.controller.afk === undefined) return emitError('Missing controller component');
+    if (user.controller.handUp === undefined) return emitError('Missing controller component');
+    if (!('comment' in user.controller)) return emitError('Missing controller component');
+
     clearSocketInterval(socket.id);
     lastPongMap.set(socket.id, Date.now());
-    let roomIndex: number = roomList.findIndex((room)=> room.roomId === roomData.roomId);
+    let roomIndex: number = roomList.findIndex((room)=> room.roomId === roomId);
     if (roomIndex === -1) return;
-    roomList[roomIndex].users.push(roomData.user);
-    socket.join(roomData.roomId);
+    roomList[roomIndex].users.push(user);
+    socket.join(roomId);
     setSocketInterval(socket.id, ()=> socket.emit('roomData', roomList[roomIndex]));
   });
 
