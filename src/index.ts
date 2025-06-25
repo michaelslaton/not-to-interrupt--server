@@ -52,6 +52,19 @@ io.on('connection', (socket) => {
     console.error(msg);
   };
   
+  // Validation Functions ------------------------------------------------------------------>
+  const userValidation = (user: UserType): boolean => {
+    if (!user) return emitError('Missing user data'), false;
+    if (!user.id?.trim()) return emitError('Missing user id'), false;
+    if (!user.name?.trim()) return emitError('Missing user name'), false;
+    // if (!user.socketId?.trim()) return emitError('Missing socketId'), false;
+    if (!user.controller) return emitError('Missing controller'), false;
+    if (user.controller.afk === undefined) return emitError('Missing controller component'), false;
+    if (user.controller.handUp === undefined) return emitError('Missing controller component'), false;
+    if (!('comment' in user.controller)) return emitError('Missing controller component'), false;
+    return true;
+  };
+  
   // Socket Functions ------------------------------------------------------------------>
   socket.on('chat', (data: { roomId: string, user: string, message: string })=>{
     const { roomId, user, message } = data;
@@ -86,7 +99,7 @@ io.on('connection', (socket) => {
     roomList.push(roomData);
     socket.join(roomId);
     lastPongMap.set(socket.id, Date.now());
-    startPingingSocket(roomData.users[0].socketId);
+    startPingingSocket(socket.id);
     const data: RoomDataType | undefined = roomList.find((room)=> room.roomId === roomId);
     setSocketInterval(socket.id, ()=> io.to(roomId).emit('roomData', data));
   });
@@ -94,14 +107,7 @@ io.on('connection', (socket) => {
   socket.on('enterRoom', (data: {roomId: string, user: UserType, socketId: string}) => {
     const {roomId, user} = data;
     if(!roomId?.trim()) return emitError('Missing roomId');
-    if (!user) return emitError('Missing user data');
-    if (!user.id?.trim()) return emitError('Missing user id');
-    if (!user.name?.trim()) return emitError('Missing user name');
-    if (!user.socketId?.trim()) return emitError('Missing socketId');
-    if (!user.controller) return emitError('Missing controller');
-    if (user.controller.afk === undefined) return emitError('Missing controller component');
-    if (user.controller.handUp === undefined) return emitError('Missing controller component');
-    if (!('comment' in user.controller)) return emitError('Missing controller component');
+    if(!userValidation(user)) return;
 
     clearSocketInterval(socket.id);
     lastPongMap.set(socket.id, Date.now());
@@ -114,8 +120,13 @@ io.on('connection', (socket) => {
 
   socket.on('leaveRoom', (data: { userId: string; roomId: string }) => {
     const { userId, roomId } = data;
+    if(!userId?.trim()) return emitError('Missing userId');
+    if(!roomId?.trim()) return emitError('Missing roomId');
     const roomIndex: number = roomList.findIndex(room => room.roomId === roomId);
     if (roomIndex === -1) return console.log(`Room ${roomId} not found for user ${userId}`);
+    const userInRoom = roomList[roomIndex].users.some(user => user.id === userId);
+    if (!userInRoom) return console.log(`User ${userId} not found in room ${roomId}`);
+
     roomList[roomIndex].users = roomList[roomIndex].users.filter(user => user.id !== userId);
     if (roomList[roomIndex].users.length === 0) {
       roomList.splice(roomIndex, 1);
@@ -130,17 +141,15 @@ io.on('connection', (socket) => {
     io.emit('getRoomList', roomList);
   });
 
-  socket.on('controllerUpdate', ({ user, roomId }) => {
+  socket.on('controllerUpdate', (data: { user: UserType, roomId: string}) => {
+    const { user, roomId } = data;
+    if(!roomId?.trim()) return emitError('Missing roomId');
+    if(!userValidation(user)) return;
+
     const roomIndex: number = roomList.findIndex(room => room.roomId === roomId);
-    if (roomIndex === -1) {
-      console.log(`Room ${roomId} not found.`);
-      return;
-    };
+    if (roomIndex === -1) return console.log(`Room ${roomId} not found.`);
     const userIndex: number = roomList[roomIndex].users.findIndex(u => u.id === user.id);
-    if (userIndex === -1) {
-      console.log(`User ${user.id} not found in room ${roomId}.`);
-      return;
-    };
+    if (userIndex === -1) return console.log(`User ${user.id} not found in room ${roomId}.`);
     roomList[roomIndex].users[userIndex] = user;
     io.emit('getRoomList', roomList);
   });
