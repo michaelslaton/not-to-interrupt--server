@@ -20,9 +20,9 @@ const startPingingSocket = (socketId: string) => {
   targetSocketIds.add(socketId);
 };
 
-const stopPingingSocket = (socketId: string) => {
-  targetSocketIds.delete(socketId);
-};
+// const stopPingingSocket = (socketId: string) => {
+//   targetSocketIds.delete(socketId);
+// };
 
 const removeUserBySocketId = (socketId: string) => {
   for (const room of roomList) room.users = room.users.filter(user => user.socketId !== socketId);
@@ -57,7 +57,7 @@ io.on('connection', (socket) => {
     if (!user) return emitError('Missing user data'), false;
     if (!user.id?.trim()) return emitError('Missing user id'), false;
     if (!user.name?.trim()) return emitError('Missing user name'), false;
-    // if (!user.socketId?.trim()) return emitError('Missing socketId'), false;
+    if (!user.socketId?.trim()) return emitError('Missing socketId'), false;
     if (!user.controller) return emitError('Missing controller'), false;
     if (user.controller.afk === undefined) return emitError('Missing controller component'), false;
     if (user.controller.handUp === undefined) return emitError('Missing controller component'), false;
@@ -94,7 +94,9 @@ io.on('connection', (socket) => {
     if(!hostId?.trim()) return emitError('Missing hostId');
     if(!name?.trim()) return emitError('Missing Room Name');
     const roomExists = roomList.some(room => room.roomId === roomData.roomId || room.name === roomData.name);
-    if (roomExists) return emitError(`Room with ID "${roomData.roomId}" or name "${roomData.name}" already exists.`);
+    if(roomExists) return emitError(`Room with ID '${roomData.roomId}' or name '${roomData.name}' already exists.`);
+    if(!users.length) return emitError('Missing User List');
+    if(!userValidation(users[0])) return;
 
     roomList.push(roomData);
     socket.join(roomId);
@@ -156,36 +158,69 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log(`Client disconnected: ${socket.id}`);
-
     const interval = activeIntervals.get(socket.id);
     if (interval) {
       clearInterval(interval);
       activeIntervals.delete(socket.id);
-    }
-
+    };
     removeUserBySocketId(socket.id);
-
     lastPongMap.delete(socket.id);
     targetSocketIds.delete(socket.id);
 
     io.emit('getRoomList', roomList);
   });
+
+  socket.on('passMic', (data: { currentUser: string; newUser: string }) => {
+    const { currentUser, newUser } = data;
+
+    if (!currentUser?.trim()) return emitError('Missing currentUser');
+    if (!newUser?.trim()) return emitError('Missing newUser');
+
+    // Find the room containing both users
+    const roomIndex = roomList.findIndex(room =>
+      room.users.some(u => u.id === currentUser) &&
+      room.users.some(u => u.id === newUser)
+    );
+    if (roomIndex === -1) return emitError('Room with both users not found');
+
+    const room = roomList[roomIndex];
+    const fromUserIndex = room.users.findIndex(user => user.id === currentUser);
+    const toUserIndex = room.users.findIndex(user => user.id === newUser);
+
+    if (fromUserIndex === -1) return emitError('Current user not found');
+    if (toUserIndex === -1) return emitError('New user not found');
+    if (!room.users[fromUserIndex].controller.hasMic) return emitError('Current user does not have the mic');
+
+    // Pass the mic
+    room.users[fromUserIndex].controller.hasMic = false;
+    room.users[toUserIndex].controller.hasMic = true;
+
+    // Update the room in the list
+    roomList[roomIndex] = { ...room };
+
+    // Emit updates
+    io.to(room.users[toUserIndex].socketId).emit('receiveMic', {
+      userId: room.users[toUserIndex].id,
+      roomId: room.roomId,
+    });
+
+    io.to(room.roomId).emit('roomData', room);
+    // io.emit('getRoomList', roomList); // Optional: update room list for everyone
+  });
 });
+
 const targetSocketIds = new Set<string>();
 
 // Ping interval logic ------------------------------------------------------------------>
 setInterval(() => {
   const now = Date.now();
-
   for (const [socketId, lastPong] of lastPongMap.entries()) {
     const socket = io.sockets.sockets.get(socketId);
-
     if (!socket) {
       console.log(`Socket ${socketId} not found. Removing from map.`);
       lastPongMap.delete(socketId);
       continue;
     };
-
     if (now - lastPong > 10000) {
       console.log(`Socket ${socketId} timed out. Disconnecting.`);
       socket.disconnect(true);
@@ -193,7 +228,6 @@ setInterval(() => {
       removeUserBySocketId(socketId);
       continue;
     };
-
     socket.emit('pingCheck');
   };
 }, 5000);
