@@ -194,6 +194,7 @@ io.on('connection', (socket) => {
     // Pass the mic
     room.users[fromUserIndex].controller.hasMic = false;
     room.users[toUserIndex].controller.hasMic = true;
+    room.users[toUserIndex].controller.handUp = false;
 
     // Update the room in the list
     roomList[roomIndex] = { ...room };
