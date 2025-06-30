@@ -126,7 +126,7 @@ io.on('connection', (socket) => {
     if(!roomId?.trim()) return emitError('Missing roomId');
     const roomIndex: number = roomList.findIndex(room => room.roomId === roomId);
     if (roomIndex === -1) return console.log(`Room ${roomId} not found for user ${userId}`);
-    const userInRoom = roomList[roomIndex].users.some(user => user.id === userId);
+    const userInRoom: boolean = roomList[roomIndex].users.some(user => user.id === userId);
     if (!userInRoom) return console.log(`User ${userId} not found in room ${roomId}`);
 
     roomList[roomIndex].users = roomList[roomIndex].users.filter(user => user.id !== userId);
@@ -134,6 +134,12 @@ io.on('connection', (socket) => {
       roomList.splice(roomIndex, 1);
       console.log(`Room ${roomId} is now empty and has been removed.`);
     } else {
+      const someoneHasMic = roomList[roomIndex].users.some(user=> user.controller.hasMic);
+      if(!someoneHasMic) roomList[roomIndex].users[0].controller.hasMic = true;
+      io.to(roomList[roomIndex].users[0].socketId).emit('receiveMic', {
+        userId: roomList[roomIndex].users[0].id,
+        roomId: roomList[roomIndex].roomId,
+      });
       io.to(roomId).emit('roomData', roomList[roomIndex]);
     };
     socket.leave(roomId);
