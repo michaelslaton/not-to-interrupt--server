@@ -3,6 +3,7 @@ import type { UserType } from './UserType.type';
 type ChatEntry = {
   user: string;
   message: string;
+  color: string;
 }
 
 type RoomDataType = {

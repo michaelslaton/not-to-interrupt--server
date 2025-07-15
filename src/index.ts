@@ -66,15 +66,15 @@ io.on('connection', (socket) => {
   };
   
   // Socket Functions ------------------------------------------------------------------>
-  socket.on('chat', (data: { roomId: string, user: string, message: string })=>{
-    const { roomId, user, message } = data;
+  socket.on('chat', (data: { roomId: string, user: string, message: string, color: string })=>{
+    const { roomId, user, message, color } = data;
     if (!roomId?.trim()) return emitError('Missing RoomID');
     if (!user?.trim()) return emitError('Missing User');
     if (!message?.trim()) return emitError('Missing Message');
 
     const roomIndex: number = roomList.findIndex(room => room.roomId === roomId);
     if (roomIndex === -1) return emitError(`Room ${roomId} not found for user ${user}`);
-    roomList[roomIndex].chat.push({ user, message });
+    roomList[roomIndex].chat.push({ user, message, color });
     io.to(roomId).emit('roomData', roomList[roomIndex]);
   });
 
